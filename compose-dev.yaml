@@ -30,6 +30,8 @@ services:
     user: postgres
     secrets:
       - db-password
+    ports:
+    - '5432:5432'
     volumes:
       - db-data:/var/lib/postgresql/data
     environment:
