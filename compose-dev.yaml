@@ -31,7 +31,7 @@ services:
     secrets:
       - db-password
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - ./db/data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=eve_pie
       - POSTGRES_PASSWORD=eve_pie
