@@ -11,8 +11,9 @@ CMD ["manage.py", "runserver", "0.0.0.0:8000"]
 
 FROM builder as dev-envs
 RUN <<EOF
-apk update
-apk add git
+# apk update
+# apk add git
+apt update
 EOF
 
 RUN <<EOF
