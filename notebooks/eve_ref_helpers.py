@@ -9,11 +9,12 @@ import zipfile
 import tarfile
 import tempfile
 import msgspec
+from sqlalchemy import create_engine
 from process_killmails import extract_attacker_and_victim_and_items as extract
 import pandas as pd
 from dataframe_to_database import dataframe_to_database as df_to_db
 import psycopg2
-
+from sqlalchemy import create_engine
 # conn_string = 'postgresql://postgres:eve_pie@localhost/eve_pie'
 conn_string = 'postgresql://postgres:ZzIc2R5bO49ObfAmr7vX@containers-us-west-182.railway.app:7545/railway'
 
@@ -31,7 +32,7 @@ def get_directories_and_files(url, directory_queue: Queue, file_queue: Queue):
 
 
 def make_request(url: str):
-    print('making request')
+    # print('making request')
     with httpx.Client() as client:
         response = client.get(url)
         return response
@@ -69,16 +70,23 @@ def download_files_to_database(url):
         filename: str = os.path.basename(url)
         directory_and_file = os.path.join(directory, filename)
         # save the file
-        with open(os.path.join(directory, filename), 'wb') as f:
+        with open(directory_and_file, 'wb') as f:
             f.write(response.content)
-        # if the file is a zip or tar.bz2 file, extract it
-        if filename.endswith('.zip'):
-            with zipfile.ZipFile(directory_and_file, 'r') as zip_ref:
-                zip_ref.extractall(directory)
-        elif filename.endswith('.tar.bz2'):
-            with tarfile.open(directory_and_file, 'r:bz2') as tar_ref:
-                tar_ref.extractall(directory)
-        load_files_into_database(directory)
+        extract_archive(directory, filename, directory_and_file)
+
+        load_files_into_database(
+            os.path.join(
+                directory, 'killmails'))
+
+
+def extract_archive(directory, filename, directory_and_file):
+    # if the file is a zip or tar.bz2 file, extract it
+    if filename.endswith('.zip'):
+        with zipfile.ZipFile(directory_and_file, 'r') as zip_ref:
+            zip_ref.extractall(directory)
+    elif filename.endswith('.tar.bz2'):
+        with tarfile.open(directory_and_file, 'r:bz2') as tar_ref:
+            tar_ref.extractall(directory)
 
 
 def load_files_into_database(directory: str):
@@ -94,27 +102,31 @@ def load_files_into_database(directory: str):
             decoded_json = decode_with_msgspec(f.read())
             decoded_killmail = extract(decoded_json)
 
-            killmails.append(decoded_killmail['killmail'])
-            if decoded_killmail['attackers']:
-                attackers.extend(decoded_killmail['attackers'])
-            if decoded_killmail['victims']:
-                victims.append(decoded_killmail['victim'])
-            if decoded_killmail['items']:
-                items.extend(decoded_killmail['items'])
+        killmails.append(decoded_killmail.get('killmail'))
+        if decoded_killmail.get('attackers'):
+            attackers.extend(decoded_killmail['attackers'])
+        if decoded_killmail.get('victim'):
+            victims.append(decoded_killmail['victim'])
+        if decoded_killmail.get('items'):
+            items.extend(decoded_killmail['items'])
     killmail_dataframe = pd.json_normalize(attackers)
     victim_dataframe = pd.json_normalize(victims)
     attacker_dataframe = pd.json_normalize(attackers)
     item_dataframe = pd.json_normalize(items)
-    pg_conn = psycopg2.connect(conn_string)
+
+    # pg_conn = psycopg2.connect(conn_string)
+    engine = create_engine(conn_string)
+    pg_conn = engine.connect()
     df_to_db(killmail_dataframe, 'killmails', pg_conn)
     df_to_db(victim_dataframe, 'victims', pg_conn)
     df_to_db(attacker_dataframe, 'attackers', pg_conn)
     df_to_db(item_dataframe, 'items', pg_conn)
     pg_conn.close()
+    # pg_conn.close()
 
 
 def decode_with_msgspec(json_data: Union[bytes, str]) -> dict:
-    print('decoding json')
+    # print('decoding json')
     return msgspec.json.decode(json_data)
 
 
