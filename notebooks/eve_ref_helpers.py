@@ -139,25 +139,15 @@ def prime_database(killmails, victims, attackers, items):
     # pg_conn.close()
 
 
-def load_items_into_database(killmails, victims, attackers, items):
+def load_items_into_database(killmails, victims, attackers, items, pg_conn):
     killmail_dataframe = pd.json_normalize(killmails)
     victim_dataframe = pd.json_normalize(victims)
     attacker_dataframe = pd.json_normalize(attackers)
     item_dataframe = pd.json_normalize(items)
-
-    ##
-    # Crazy stuff to try to fix items not processing correctly
-    # Making batches smaller (uploading very small dataframes to the database)
-    ##
-
-    # uncomment to use pandas df_to_sql
-    engine = create_engine(conn_string)
-    pg_conn = engine.connect()
     copy_df_to_db(item_dataframe, 'items', pg_conn)
     copy_df_to_db(killmail_dataframe, 'killmails', pg_conn)
     copy_df_to_db(victim_dataframe, 'victims', pg_conn)
     copy_df_to_db(attacker_dataframe, 'attackers', pg_conn)
-    engine.dispose()
 
 
 def decode_with_msgspec(json_data: Union[bytes, str]) -> dict:

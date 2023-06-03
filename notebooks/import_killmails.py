@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 from bs4 import BeautifulSoup as bs
+from sqlalchemy import create_engine
 import eve_ref_helpers as er
 import os
 from queue import Queue
@@ -30,6 +31,8 @@ def work(url: str):
 
 
 def big_work(thread, batch_size, first):
+    engine = create_engine(conn_string)
+    pg_conn = engine.connect()
     if first:
         killmail_list: list = []
         victim_list: list = []
@@ -71,7 +74,7 @@ def big_work(thread, batch_size, first):
             batch_counter += 1
             if batch_counter >= batch_size:
                 er.load_items_into_database(
-                    killmail_list, victim_list, attacker_list, item_list)
+                    killmail_list, victim_list, attacker_list, item_list, pg_conn)
                 batch_counter = 0
                 killmail_list = []
                 victim_list = []
@@ -81,8 +84,8 @@ def big_work(thread, batch_size, first):
             print(
                 f"thread: {thread}, killmails: {len(killmail_list)}, victims: {len(victim_list)}, attackers: {len(attacker_list)}, items: {len(item_list)}")
         er.load_items_into_database(
-            killmail_list, victim_list, attacker_list, item_list)
-
+            killmail_list, victim_list, attacker_list, item_list, pg_conn)
+    engine.dispose()
 
 def main(url='https://data.everef.net/killmails/'):
     connect_and_drop_tables(conn_string)
@@ -131,7 +134,7 @@ def main(url='https://data.everef.net/killmails/'):
 
     with ProcessPoolExecutor(max_workers=10) as executor:
         for i in range(1, 11):
-            executor.submit(big_work, i, 5, False)
+            executor.submit(big_work, i, 10, False)
 
 
 if __name__ == "__main__":
