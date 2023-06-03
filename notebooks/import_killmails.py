@@ -6,11 +6,13 @@ import os
 from queue import Queue
 
 from cache_helpers import check_cache, read_cache, write_cache
+from dataframe_to_database import connect_and_drop_tables
 
 directory_queue: Queue[tuple[str, bool]] = Queue()
 file_queue = Queue()
 
 temp_directory_name = os.path.join(os.path.pardir, 'data')
+conn_string = 'postgresql://postgres:ZzIc2R5bO49ObfAmr7vX@containers-us-west-182.railway.app:7545/railway'
 
 
 def work(url: str):
@@ -27,7 +29,63 @@ def work(url: str):
         file_queue.put((link, False))
 
 
+def big_work(thread, batch_size, first):
+    if first:
+        killmail_list: list = []
+        victim_list: list = []
+        attacker_list: list = []
+        item_list: list = []
+        for x in range(batch_size):
+            link, is_work = file_queue.get(block=True, timeout=30)
+            (killmails, victims, attackers,
+             items) = er.download_files_to_database(link)
+
+            killmail_list.extend(killmails)
+            victim_list.extend(victims)
+            attacker_list.extend(attackers)
+            item_list.extend(items)
+        er.prime_database(killmail_list, victim_list, attacker_list, item_list)
+        return
+    else:
+        killmail_list: list = []
+        victim_list: list = []
+        attacker_list: list = []
+        item_list: list = []
+        batch_counter: int = 0
+        while True:
+            print(f'Approximate file queue length {file_queue.qsize()}')
+            try:
+                link, is_work = file_queue.get(block=True, timeout=30)
+            except Exception as e:
+                print(
+                    '##################!Thread is naturally breaking!###################')
+                print(e)
+                break
+            (killmails, victims, attackers,
+             items) = er.download_files_to_database(link)
+
+            killmail_list.extend(killmails)
+            victim_list.extend(victims)
+            attacker_list.extend(attackers)
+            item_list.extend(items)
+            batch_counter += 1
+            if batch_counter >= batch_size:
+                er.load_items_into_database(
+                    killmail_list, victim_list, attacker_list, item_list)
+                batch_counter = 0
+                killmail_list = []
+                victim_list = []
+                attacker_list = []
+                item_list = []
+            # print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+            print(
+                f"thread: {thread}, killmails: {len(killmail_list)}, victims: {len(victim_list)}, attackers: {len(attacker_list)}, items: {len(item_list)}")
+        er.load_items_into_database(
+            killmail_list, victim_list, attacker_list, item_list)
+
+
 def main(url='https://data.everef.net/killmails/'):
+    connect_and_drop_tables(conn_string)
     if not check_cache():
         soup: bs = er.get_soup(url)
         directories_links = er.get_directories(soup)
@@ -38,7 +96,7 @@ def main(url='https://data.everef.net/killmails/'):
                 directory_queue.put((link, True))
         else:
             raise Exception('No directories found on initial page.')
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             # for link in directories_links or []:
             #     executor.submit(work, link, executor)
             while True:
@@ -67,31 +125,13 @@ def main(url='https://data.everef.net/killmails/'):
 
     # Second loop
     print('starting second loop')
-    killmail_list: list = []
-    victim_list: list = []
-    attacker_list: list = []
-    item_list: list = []
+
     #
+    big_work(0, 5, True)
 
-    while True:
-        print(f'Approximate file queue length {file_queue.qsize()}')
-        try:
-            link, is_work = file_queue.get(block=True, timeout=20)
-            print(link)
-        except Exception as e:
-            print(e)
-            break
-        (killmails, victims, attackers, items) = er.download_files_to_database(link)
-
-        killmail_list.extend(killmails)
-        victim_list.extend(victims)
-        attacker_list.extend(attackers)
-        item_list.extend(items)
-        print("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
-        print(
-            f"killmails: {len(killmail_list)}, victims: {len(victim_list)}, attackers: {len(attacker_list)}, items: {len(item_list)}")
-    er.load_items_into_database(
-        killmail_list, victim_list, attacker_list, item_list)
+    with ProcessPoolExecutor(max_workers=10) as executor:
+        for i in range(1, 11):
+            executor.submit(big_work, i, 5, False)
 
 
 if __name__ == "__main__":

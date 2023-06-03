@@ -59,7 +59,6 @@ def extract_attacker_and_victim_and_items(json: dict) -> dict[str, dict]:
             items.extend(new_items_list)
             result['items'] = items
         else:
-            print()
             victim.pop('items')
         result['victim'] = victim
 

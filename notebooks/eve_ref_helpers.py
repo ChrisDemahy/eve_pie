@@ -13,8 +13,9 @@ from sqlalchemy import create_engine
 from process_killmails import extract_attacker_and_victim_and_items as extract
 import pandas as pd
 from dataframe_to_database import dataframe_to_database as df_to_db
+from dataframe_to_database import no_truly_copy_dataframe_to_database as copy_df_to_db
 import psycopg2
-from sqlalchemy import create_engine
+
 # conn_string = 'postgresql://postgres:eve_pie@localhost/eve_pie'
 conn_string = 'postgresql://postgres:ZzIc2R5bO49ObfAmr7vX@containers-us-west-182.railway.app:7545/railway'
 
@@ -113,6 +114,31 @@ def files_to_items(directory: str) -> tuple[list, list, list, list]:
     return ((killmails, victims, attackers, items))
 
 
+def prime_database(killmails, victims, attackers, items):
+    print(
+        '##################!Prime that database!###################')
+    killmail_dataframe = pd.json_normalize(killmails)
+    victim_dataframe = pd.json_normalize(victims)
+    attacker_dataframe = pd.json_normalize(attackers)
+    item_dataframe = pd.json_normalize(items)
+
+    ##
+    # Crazy stuff to try to fix items not processing correctly
+    # Making batches smaller (uploading very small dataframes to the database)
+    ##
+
+    # pg_conn = psycopg2.connect(conn_string)
+    # uncomment to use pandas df_to_sql
+
+    df_to_db(item_dataframe, 'items')
+    df_to_db(killmail_dataframe, 'killmails')
+    df_to_db(victim_dataframe, 'victims')
+    df_to_db(attacker_dataframe, 'attackers')
+    print(
+        '##################!Done Priming LOL!###################')
+    # pg_conn.close()
+
+
 def load_items_into_database(killmails, victims, attackers, items):
     killmail_dataframe = pd.json_normalize(killmails)
     victim_dataframe = pd.json_normalize(victims)
@@ -124,15 +150,14 @@ def load_items_into_database(killmails, victims, attackers, items):
     # Making batches smaller (uploading very small dataframes to the database)
     ##
 
-    pg_conn = psycopg2.connect(conn_string)
+    # uncomment to use pandas df_to_sql
     engine = create_engine(conn_string)
     pg_conn = engine.connect()
-
-    df_to_db(item_dataframe, 'items', pg_conn)
-    df_to_db(killmail_dataframe, 'killmails', pg_conn)
-    df_to_db(victim_dataframe, 'victims', pg_conn)
-    df_to_db(attacker_dataframe, 'attackers', pg_conn)
-    pg_conn.close()
+    copy_df_to_db(item_dataframe, 'items', pg_conn)
+    copy_df_to_db(killmail_dataframe, 'killmails', pg_conn)
+    copy_df_to_db(victim_dataframe, 'victims', pg_conn)
+    copy_df_to_db(attacker_dataframe, 'attackers', pg_conn)
+    engine.dispose()
 
 
 def decode_with_msgspec(json_data: Union[bytes, str]) -> dict:
