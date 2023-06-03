@@ -35,10 +35,15 @@ def dataframe_to_database(dataframe: pd.DataFrame, table_name: str, pg_conn):
     #     cur.execute(sql)
     #     pg_conn.commit()
     #     cur.close()
+    # print(directory)
     dataframe.to_sql(table_name, con=pg_conn, if_exists='append',
-                     index=True, )
+                     index=False, method='multi', chunksize=10000)
+
 
 # # Example usage:
 # input_string = "https://www.awebsite.com/path/to/some/file.txt"
 # result = get_items_before_last_slash(input_string)
 # print(result)
+
+
+# This function takes a dataframe with a column named id of type uuid and loads said dataframe into a postgres database using pandas.to_sql and uses the correct postgres types for the id column.

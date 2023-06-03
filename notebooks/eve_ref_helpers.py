@@ -32,7 +32,6 @@ def get_directories_and_files(url, directory_queue: Queue, file_queue: Queue):
 
 
 def make_request(url: str):
-    # print('making request')
     with httpx.Client() as client:
         response = client.get(url)
         return response
@@ -46,7 +45,6 @@ def get_soup(url: str) -> bs:
 
 def get_directories(soup: bs) -> Union[list[str], None]:
     directories = soup.find_all(class_='data-dir')
-    # print(f'Getting directories: {directories}')
     if directories:
         directories_table_entries = list(map(lambda soup: soup.find(
             'a', href=True, class_='url'), directories))
@@ -60,7 +58,7 @@ def get_files(soup: bs) -> Union[list[str], None]:
     if files:
         file_links = list(
             map(lambda soup: f"https://data.everef.net{soup['href']}", files))
-        # print(f'file links: {file_links}')
+
         return file_links
 
 
@@ -74,9 +72,10 @@ def download_files_to_database(url):
             f.write(response.content)
         extract_archive(directory, filename, directory_and_file)
 
-        load_files_into_database(
+        (killmails, victims, attackers, items) = files_to_items(
             os.path.join(
                 directory, 'killmails'))
+    return (killmails, victims, attackers, items)
 
 
 def extract_archive(directory, filename, directory_and_file):
@@ -89,7 +88,7 @@ def extract_archive(directory, filename, directory_and_file):
             tar_ref.extractall(directory)
 
 
-def load_files_into_database(directory: str):
+def files_to_items(directory: str) -> tuple[list, list, list, list]:
     killmails: list = []
     victims: list = []
     attackers: list = []
@@ -107,26 +106,36 @@ def load_files_into_database(directory: str):
             attackers.extend(decoded_killmail['attackers'])
         if decoded_killmail.get('victim'):
             victims.append(decoded_killmail['victim'])
+        # Items will be array of arrays [ [ item,item ], [ item,item ] ]
+        # Upload it bactches of 'items per killmail' to make error resolution easier
         if decoded_killmail.get('items'):
             items.extend(decoded_killmail['items'])
-    killmail_dataframe = pd.json_normalize(attackers)
+    return ((killmails, victims, attackers, items))
+
+
+def load_items_into_database(killmails, victims, attackers, items):
+    killmail_dataframe = pd.json_normalize(killmails)
     victim_dataframe = pd.json_normalize(victims)
     attacker_dataframe = pd.json_normalize(attackers)
     item_dataframe = pd.json_normalize(items)
 
-    # pg_conn = psycopg2.connect(conn_string)
+    ##
+    # Crazy stuff to try to fix items not processing correctly
+    # Making batches smaller (uploading very small dataframes to the database)
+    ##
+
+    pg_conn = psycopg2.connect(conn_string)
     engine = create_engine(conn_string)
     pg_conn = engine.connect()
+
+    df_to_db(item_dataframe, 'items', pg_conn)
     df_to_db(killmail_dataframe, 'killmails', pg_conn)
     df_to_db(victim_dataframe, 'victims', pg_conn)
     df_to_db(attacker_dataframe, 'attackers', pg_conn)
-    df_to_db(item_dataframe, 'items', pg_conn)
     pg_conn.close()
-    # pg_conn.close()
 
 
 def decode_with_msgspec(json_data: Union[bytes, str]) -> dict:
-    # print('decoding json')
     return msgspec.json.decode(json_data)
 
 
