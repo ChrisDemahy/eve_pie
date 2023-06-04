@@ -15,9 +15,7 @@ import pandas as pd
 from dataframe_to_database import dataframe_to_database as df_to_db
 from dataframe_to_database import no_truly_copy_dataframe_to_database as copy_df_to_db
 import psycopg2
-
-# conn_string = 'postgresql://postgres:eve_pie@localhost/eve_pie'
-conn_string = 'postgresql://postgres:ZzIc2R5bO49ObfAmr7vX@containers-us-west-182.railway.app:7545/railway'
+from dataframe_to_database import conn_string
 
 
 def get_directories_and_files(url, directory_queue: Queue, file_queue: Queue):

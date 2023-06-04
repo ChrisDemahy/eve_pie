@@ -27,7 +27,7 @@ def read_cache(filename='temp.csv'):
 
                 # Append the line to the list
                 lines.append(line)
-
+            lines.reverse()
             return lines
         except Exception as e:
             f.close()

@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 import psycopg2
 
 
-conn_string = 'postgresql://postgres:ZzIc2R5bO49ObfAmr7vX@containers-us-west-182.railway.app:7545/railway'
+conn_string = 'postgresql://linpostgres:vJZKtc1tH4KE-Wp4@lin-22693-8146-pgsql-primary-private.servers.linodedb.net:5432/railway?sslmode=require'
 
 
 def dataframe_to_database(dataframe: pd.DataFrame, table_name: str):
@@ -112,5 +112,5 @@ def no_truly_copy_dataframe_to_database(dataframe: pd.DataFrame, table_name: str
     # engine = create_engine(conn_string)
     # pg_conn = engine.connect()
     dataframe.to_sql(table_name, con=pg_conn, if_exists='append',
-                     index=False, method=psql_insert_copy)
+                     index=False, method=psql_insert_copy, chunksize=10000)
     # engine.dispose()

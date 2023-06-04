@@ -1,3 +1,4 @@
+from dataframe_to_database import conn_string
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 from bs4 import BeautifulSoup as bs
@@ -13,7 +14,6 @@ directory_queue: Queue[tuple[str, bool]] = Queue()
 file_queue = Queue()
 
 temp_directory_name = os.path.join(os.path.pardir, 'data')
-conn_string = 'postgresql://postgres:ZzIc2R5bO49ObfAmr7vX@containers-us-west-182.railway.app:7545/railway'
 
 
 def work(url: str):
@@ -47,7 +47,9 @@ def big_work(thread, batch_size, first):
             victim_list.extend(victims)
             attacker_list.extend(attackers)
             item_list.extend(items)
-        er.prime_database(killmail_list, victim_list, attacker_list, item_list)
+        # er.prime_database(killmail_list, victim_list, attacker_list, item_list)
+        er.load_items_into_database(
+            killmail_list, victim_list, attacker_list, item_list, pg_conn)
         return
     else:
         killmail_list: list = []
@@ -87,9 +89,10 @@ def big_work(thread, batch_size, first):
             killmail_list, victim_list, attacker_list, item_list, pg_conn)
     engine.dispose()
 
+
 def main(url='https://data.everef.net/killmails/'):
     connect_and_drop_tables(conn_string)
-    if not check_cache():
+    if check_cache() == False:
         soup: bs = er.get_soup(url)
         directories_links = er.get_directories(soup)
         if not directories_links:
@@ -130,11 +133,11 @@ def main(url='https://data.everef.net/killmails/'):
     print('starting second loop')
 
     #
-    big_work(0, 5, True)
-
-    with ProcessPoolExecutor(max_workers=10) as executor:
-        for i in range(1, 11):
-            executor.submit(big_work, i, 10, False)
+    big_work(0, 10, True)
+    max_workers = 32
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for i in range(max_workers):
+            executor.submit(big_work, i, 1, False)
 
 
 if __name__ == "__main__":
